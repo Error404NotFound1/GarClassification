@@ -69,21 +69,38 @@ bool checkModel(const std::string &engine_file)
     return file.good();  // 如果文件成功打开，则返回 true
 }
 
-void preprocess(const cv::Mat& img, cv::Mat &output, int h, int w)
+void pre_resize(const cv::Mat& img, cv::Mat &output, int h, int w){
+    // 1. 调整图像大小并保持长宽比
+    int max_side_len = std::max(img.cols, img.rows);
+    cv::Mat pad_img = cv::Mat::zeros(cv::Size(max_side_len, max_side_len), img.type());
+    img.copyTo(pad_img(cv::Rect(0, 0, img.cols, img.rows)));
+
+    // 2. 缩放图像到指定大小
+    cv::resize(pad_img, output, cv::Size(w, h));
+}
+
+void preprocess(const cv::Mat& img, std::vector<float>& output)
 {
-    // 图像预处理
-    output = img.clone();
-    int max_side_len = std::max(output.cols, output.rows);
-    cv::Mat pad_img = cv::Mat::zeros(cv::Size(max_side_len, max_side_len), CV_8UC3);
-    cv::Rect roi = cv::Rect(0, 0, output.cols, output.rows);
-    output.copyTo(pad_img(roi));
+    int h = img.rows;
+    int w = img.cols;
+    cv::Mat resized_img = img.clone();
+    resized_img.convertTo(resized_img, CV_32FC3, 1.0 / 255.0);
 
-    cv::Size input_node_shape(w, h);
-    cv::Mat resized_img;
+    // 5. 分离通道
+    std::vector<cv::Mat> channels(3);
+    cv::split(resized_img, channels); // channels[0] = R, channels[1] = G, channels[2] = B
 
-    cv::resize(output, output, cv::Size(w, h));
-	// cv::cvtColor(output, output, cv::COLOR_BGR2RGB);
-    output.convertTo(output, CV_32FC3, 1.0 / 255); // 归一化
+    // 6. 将每个通道的数据按顺序排列为 RRR...GGG...BBB
+    output.resize(3 * h * w); // 确保输出向量有足够的空间
+
+    // 复制 R 通道
+    std::memcpy(output.data(), channels[2].data, sizeof(float) * h * w);
+
+    // 复制 G 通道
+    std::memcpy(output.data() + h * w, channels[1].data, sizeof(float) * h * w);
+
+    // 复制 B 通道
+    std::memcpy(output.data() + 2 * h * w, channels[0].data, sizeof(float) * h * w);
 }
 
 // 计算两个矩形的重叠区域（IoU）
@@ -152,9 +169,10 @@ std::vector<YoloRect> postProcess(float* output_data, int num_detections, float 
                 class_score = data[5 + j];
             }
         }
+        
+        // if(confidence > 0.001) std::cout<<"confidence: "<<confidence<<std::endl;
         confidence *= class_score;
-        if(confidence>0.005)
-        std::cout<<"confidence: "<<confidence<<std::endl;
+        
         // 根据置信度阈值筛选检测框
         if (confidence > confidence_threshold) {
             float x_c = x;
@@ -176,77 +194,61 @@ std::vector<YoloRect> postProcess(float* output_data, int num_detections, float 
 
 // 绘制检测框
 void drawDetections(cv::Mat& image, const std::vector<YoloRect>& detections) {
-    std::cout<<"drawDetections size: "<<detections.size()<<std::endl;
+    std::cout << "drawDetections size: " << detections.size() << std::endl;
     for (const auto& detection : detections) {
-        // 对 detection.rect 进行边界检查
-        // int x = std::clamp(detection.rect.x, 0, image.cols - 1);
-        // int y = std::clamp(detection.rect.y, 0, image.rows - 1);
-        // int width = std::clamp(detection.rect.width, 0, image.cols - x);
-        // int height = std::clamp(detection.rect.height, 0, image.rows - y);
-
-        // // 创建新的矩形框，确保不超出边界
-        // cv::Rect boundedRect(x, y, width, height);
-
         // 绘制矩形框
         cv::rectangle(image, detection.rect, cv::Scalar(0, 255, 0), 2); // 绿色框
 
-        // // 绘制置信度
-        // std::string label = "Class: " + std::to_string(detection.class_id) + 
-        //                     ", Conf: " + std::to_string(detection.confidence);
-        // int baseLine;
-        // cv::Size labelSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+        // 绘制置信度和类别ID
+        std::string label = "Class: " + std::to_string(detection.class_id) + 
+                            ", Conf: " + std::to_string(detection.confidence);
+        int baseLine;
+        cv::Size labelSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
 
-        // // 计算标签的绘制位置
-        // int label_x = x;
-        // int label_y = y - labelSize.height;
+        // 计算标签的绘制位置（框的左上角）
+        int label_x = detection.rect.x;
+        int label_y = detection.rect.y - labelSize.height;
 
-        // // 确保标签不超出图像边界
-        // label_y = std::max(label_y, y + height); // 如果超出顶部，放到框底部
-        // label_x = std::clamp(label_x, 0, image.cols - labelSize.width); // 确保x坐标不小于0且不超出右边界
+        // 确保标签不会超出顶部边界
+        if (label_y < 0) {
+            label_y = detection.rect.y + labelSize.height;
+        }
 
-        // // 绘制标签背景框
-        // cv::rectangle(image, 
-        //             cv::Point(label_x, label_y),
-        //             cv::Point(label_x + labelSize.width, label_y + labelSize.height + baseLine),
-        //             cv::Scalar(0, 255, 0), cv::FILLED);
+        // 确保标签不超出左右边界
+        label_x = std::clamp(label_x, 0, image.cols - labelSize.width);
+
+        // 绘制标签背景框
+        cv::rectangle(image, 
+                      cv::Point(label_x, label_y),
+                      cv::Point(label_x + labelSize.width, label_y + labelSize.height + baseLine),
+                      cv::Scalar(0, 255, 0), cv::FILLED);
         
-        // // 在图像上绘制标签
-        // cv::putText(image, label, 
-        //             cv::Point(label_x, label_y + labelSize.height), // 让文本位置在背景框内
-        //             cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+        // 在图像上绘制标签
+        cv::putText(image, label, 
+                    cv::Point(label_x, label_y + labelSize.height), // 让文本在背景框内
+                    cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
     }
 }
 
-void DetectStart(const cv::Mat &frame, YoloModel &yolo, cudaStream_t stream) {
+
+void DetectStart(cv::Mat &frame, YoloModel &yolo, cudaStream_t stream) {
     // 创建一个时间点用于测量
     TimePoint t0;
 
     // 获取输入输出绑定索引
-    int input_index = yolo.engine->getBindingIndex("input");
-    int output_index1 = yolo.engine->getBindingIndex("output"); // 第一个输出
-    int output_index2 = yolo.engine->getBindingIndex("onnx::Sigmoid_345"); // 第二个输出
-    int output_index3 = yolo.engine->getBindingIndex("onnx::Sigmoid_435"); // 第三个输出
-    int output_index4 = yolo.engine->getBindingIndex("onnx::Sigmoid_525"); // 第四个输出
+    int input_index = yolo.engine->getBindingIndex("images");
+    int output_index1 = yolo.engine->getBindingIndex("output0"); // 第一个输出
 
     // 获取输入输出维度
     nvinfer1::Dims input_dims = yolo.engine->getBindingDimensions(input_index);
     nvinfer1::Dims output_dims1 = yolo.engine->getBindingDimensions(output_index1);
-    nvinfer1::Dims output_dims2 = yolo.engine->getBindingDimensions(output_index2);
-    nvinfer1::Dims output_dims3 = yolo.engine->getBindingDimensions(output_index3);
-    nvinfer1::Dims output_dims4 = yolo.engine->getBindingDimensions(output_index4);
 
     // 计算输入输出数据大小
     size_t input_size = input_dims.d[0] * input_dims.d[1] * input_dims.d[2] * input_dims.d[3] * sizeof(float);
     size_t output_size1 = (output_dims1.d[0] * output_dims1.d[1] * output_dims1.d[2]) * sizeof(float);
-    size_t output_size2 = (output_dims2.d[0] * output_dims2.d[1] * output_dims2.d[2] * output_dims2.d[3] * output_dims2.d[4]) * sizeof(float);
-    size_t output_size3 = (output_dims3.d[0] * output_dims3.d[1] * output_dims3.d[2] * output_dims3.d[3] * output_dims3.d[4]) * sizeof(float);
-    size_t output_size4 = (output_dims4.d[0] * output_dims4.d[1] * output_dims4.d[2] * output_dims4.d[3] * output_dims4.d[4]) * sizeof(float);
 
     float* input_buffer = nullptr;
     float* output_buffer1 = nullptr;
-    float* output_buffer2 = nullptr;
-    float* output_buffer3 = nullptr;
-    float* output_buffer4 = nullptr;
 
     cudaError_t err;
 
@@ -264,83 +266,43 @@ void DetectStart(const cv::Mat &frame, YoloModel &yolo, cudaStream_t stream) {
         return;
     }
 
-    err = cudaMalloc(reinterpret_cast<void**>(&output_buffer2), output_size2);
-    if (err != cudaSuccess) {
-        std::cerr << "CUDA error during cudaMalloc for output 2: " << cudaGetErrorString(err) << std::endl;
-        cudaFree(input_buffer);
-        cudaFree(output_buffer1);
-        return;
-    }
-
-    err = cudaMalloc(reinterpret_cast<void**>(&output_buffer3), output_size3);
-    if (err != cudaSuccess) {
-        std::cerr << "CUDA error during cudaMalloc for output 3: " << cudaGetErrorString(err) << std::endl;
-        cudaFree(input_buffer);
-        cudaFree(output_buffer1);
-        cudaFree(output_buffer2);
-        return;
-    }
-
-    err = cudaMalloc(reinterpret_cast<void**>(&output_buffer4), output_size4);
-    if (err != cudaSuccess) {
-        std::cerr << "CUDA error during cudaMalloc for output 4: " << cudaGetErrorString(err) << std::endl;
-        cudaFree(input_buffer);
-        cudaFree(output_buffer1);
-        cudaFree(output_buffer2);
-        cudaFree(output_buffer3);
-        return;
-    }
-
     // 使用 cudaMallocHost 分配页锁定内存
     float* output_data1 = nullptr;
-    float* output_data2 = nullptr;
-    float* output_data3 = nullptr;
-    float* output_data4 = nullptr;
+    
     err = cudaMallocHost(reinterpret_cast<void**>(&output_data1), output_size1); // 页锁定内存，供主机使用
-    err = cudaMallocHost(reinterpret_cast<void**>(&output_data2), output_size2); 
-    err = cudaMallocHost(reinterpret_cast<void**>(&output_data3), output_size3); 
-    err = cudaMallocHost(reinterpret_cast<void**>(&output_data4), output_size4); 
-
     if (err != cudaSuccess) {
         std::cerr << "CUDA error during cudaMallocHost for output 1: " << cudaGetErrorString(err) << std::endl;
         // 释放已分配的资源
         cudaFree(input_buffer);
         cudaFree(output_buffer1);
-        cudaFree(output_buffer2);
-        cudaFree(output_buffer3);
-        cudaFree(output_buffer4);
         return;
     }
 
    
     TimePoint t1;
-    cv::Mat resized_img;
-    preprocess(frame, resized_img, yolo.INPUT_H, yolo.INPUT_W);
+    // 预处理
+    std::vector<float> preprocessed_data;
+    pre_resize(frame, frame, yolo.INPUT_H, yolo.INPUT_W);
+    preprocess(frame, preprocessed_data);
     
 
     TimePoint t2;
     // 将数据异步复制到GPU
-    err = cudaMemcpyAsync(input_buffer, resized_img.data, input_size, cudaMemcpyHostToDevice, stream);
+    err = cudaMemcpyAsync(input_buffer, preprocessed_data.data(), input_size, cudaMemcpyHostToDevice, stream);
     if (err != cudaSuccess) {
         std::cerr << "CUDA error during cudaMemcpyAsync to input: " << cudaGetErrorString(err) << std::endl;
         // 释放资源
         cudaFree(input_buffer);
         cudaFree(output_buffer1);
-        cudaFree(output_buffer2);
-        cudaFree(output_buffer3);
-        cudaFree(output_buffer4);
         cudaFreeHost(output_data1);
         return;
     }
 
     // 执行推理
-    void* buffers[5]; // 需要为所有输出分配空间
+    void* buffers[2]; // 需要为所有输出分配空间
     // 设置缓冲区
     buffers[input_index] = input_buffer;
     buffers[output_index1] = output_buffer1;
-    buffers[output_index2] = output_buffer2;
-    buffers[output_index3] = output_buffer3;
-    buffers[output_index4] = output_buffer4;
 
     // 使用流执行推理
     yolo.context->enqueueV2(buffers, stream, nullptr);
@@ -349,9 +311,6 @@ void DetectStart(const cv::Mat &frame, YoloModel &yolo, cudaStream_t stream) {
 
     // 输出缓冲区1
     err = cudaMemcpyAsync(output_data1, output_buffer1, output_size1, cudaMemcpyDeviceToHost, stream);
-    err = cudaMemcpyAsync(output_data2, output_buffer2, output_size2, cudaMemcpyDeviceToHost, stream);
-    err = cudaMemcpyAsync(output_data3, output_buffer3, output_size3, cudaMemcpyDeviceToHost, stream);
-    err = cudaMemcpyAsync(output_data4, output_buffer4, output_size4, cudaMemcpyDeviceToHost, stream);
 
     // 等待所有操作完成
     cudaStreamSynchronize(stream);
@@ -372,14 +331,7 @@ void DetectStart(const cv::Mat &frame, YoloModel &yolo, cudaStream_t stream) {
     // 清理
     cudaFree(input_buffer);
     cudaFree(output_buffer1);
-    cudaFree(output_buffer2);
-    cudaFree(output_buffer3);
-    cudaFree(output_buffer4);
 
-    // 释放页锁定内存
-    cudaFreeHost(output_data2);
-    cudaFreeHost(output_data3);
-    cudaFreeHost(output_data4);
 
     GarbageList = postProcess(output_data1, yolo.MAX_BOXES, yolo.CONF_THRESH, yolo.IOU_THRESH, yolo.CLASSES);
     std::cout << "GarbageList size: " << GarbageList.size() << std::endl;
@@ -387,10 +339,10 @@ void DetectStart(const cv::Mat &frame, YoloModel &yolo, cudaStream_t stream) {
     //     std::cout << "class_id: " << i.class_id << " confidence: " << i.confidence << std::endl;
     //     std::cout << "rect: " << i.rect << std::endl;
     // }
-    drawDetections(resized_img, GarbageList);
-    cv::imshow("frame", resized_img);
+    drawDetections(frame, GarbageList);
+    cv::imshow("frame", frame);
     cv::waitKey(0);
-    // 释放页锁定内存
+    // // 释放页锁定内存
     cudaFreeHost(output_data1);
 
 }

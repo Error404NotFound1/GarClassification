@@ -24,6 +24,7 @@ int main() {
             break;
         }
         DetectStart(frame, *yolo, stream);
+        
         // if (frame.cols > 0) {
         //     float scale = 640.0f / frame.cols;  // 计算缩放比例
         //     int new_width = static_cast<int>(frame.cols * scale);  // 新宽度

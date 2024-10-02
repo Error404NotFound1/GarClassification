@@ -31,9 +31,11 @@ void ONNX2Engine(const std::string &onnx_file, const std::string &engine_file);
 
 bool checkModel(const std::string &engine_file);
 
-void preprocess(const cv::Mat& img, cv::Mat &output, int h, int w);
+void pre_resize(const cv::Mat& img, cv::Mat &output, int h, int w);
 
-void DetectStart(const cv::Mat &frame, YoloModel &yolo, cudaStream_t stream);
+void preprocess(const cv::Mat& img, std::vector<float>& output);
+
+void DetectStart(cv::Mat &frame, YoloModel &yolo, cudaStream_t stream);
 
 void drawDetections(cv::Mat& image, const std::vector<YoloRect>& detections);
 
