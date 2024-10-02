@@ -24,8 +24,10 @@ class YoloModel {
 class YoloRect {
     public:
         cv::Rect rect;  //检测框
+        cv::Point center;   //检测框中心
         float confidence = 0; //置信度
         int class_id = -1;   //类别
+        int angle = -1;    //角度: 0是横放，1是竖放
 };
 
 #endif // __YOLO_H__

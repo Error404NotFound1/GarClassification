@@ -69,6 +69,7 @@ bool checkModel(const std::string &engine_file)
     return file.good();  // 如果文件成功打开，则返回 true
 }
 
+// 制作预处理图像
 void pre_resize(const cv::Mat& img, cv::Mat &output, int h, int w){
     // 1. 调整图像大小并保持长宽比
     int max_side_len = std::max(img.cols, img.rows);
@@ -79,6 +80,7 @@ void pre_resize(const cv::Mat& img, cv::Mat &output, int h, int w){
     cv::resize(pad_img, output, cv::Size(w, h));
 }
 
+// 预处理函数
 void preprocess(const cv::Mat& img, std::vector<float>& output)
 {
     int h = img.rows;
@@ -170,7 +172,6 @@ std::vector<YoloRect> postProcess(float* output_data, int num_detections, float 
             }
         }
         
-        // if(confidence > 0.001) std::cout<<"confidence: "<<confidence<<std::endl;
         confidence *= class_score;
         
         // 根据置信度阈值筛选检测框
@@ -184,10 +185,12 @@ std::vector<YoloRect> postProcess(float* output_data, int num_detections, float 
             float y0 = y_c - 0.5 * h;
             float x1 = x_c + 0.5 * w;
             float y1 = y_c + 0.5 * h;
-            detections.push_back({cv::Rect(cv::Point(x0, y0), cv::Point(x1, y1)), confidence, class_id});
+
+            int angle = (w > h) ? 0 : 1;
+            detections.push_back({cv::Rect(cv::Point(x0, y0), cv::Point(x1, y1)), cv::Point(x_c, y_c), confidence, class_id, angle});
         }
     }
-    std::cout<<"detections size: "<<detections.size()<<std::endl;
+    // std::cout<<"detections size: "<<detections.size()<<std::endl;
     // 执行非极大值抑制
     return nonMaximumSuppression(detections, iou_threshold);
 }
@@ -230,7 +233,7 @@ void drawDetections(cv::Mat& image, const std::vector<YoloRect>& detections) {
     }
 }
 
-
+// 检测函数
 void DetectStart(cv::Mat &frame, YoloModel &yolo, cudaStream_t stream) {
     // 创建一个时间点用于测量
     TimePoint t0;
@@ -345,4 +348,30 @@ void DetectStart(cv::Mat &frame, YoloModel &yolo, cudaStream_t stream) {
     // // 释放页锁定内存
     cudaFreeHost(output_data1);
 
+}
+
+// 函数：根据检测框、相机内参和畸变系数计算物体的实际位置
+cv::Point3f getObjectPosition(const YoloRect& detection, const cv::Mat& intrinsic, const cv::Mat& distCoeffs, const float& FIXED_DISTANCE) {
+    // 将单个点存储在一个向量中
+    std::vector<cv::Point2f> points = { detection.center };
+    std::vector<cv::Point2f> undistortedPoints;
+
+    // 执行畸变校正
+    undistortPoints(points, undistortedPoints, intrinsic, distCoeffs, cv::Mat(), intrinsic);
+
+    // 获取校正后的点
+    cv::Point2f undistortedPoint = undistortedPoints[0];
+
+    // 从内参矩阵中获取焦距和光心
+    float fx = intrinsic.at<double>(0, 0);
+    float fy = intrinsic.at<double>(1, 1);
+    float cx = intrinsic.at<double>(0, 2);
+    float cy = intrinsic.at<double>(1, 2);
+
+    // 计算实际位置
+    float z = FIXED_DISTANCE; // 固定前向距离
+    float x = (undistortedPoint.x - cx) * z / fx;
+    float y = (undistortedPoint.y - cy) * z / fy;
+
+    return cv::Point3f(x, y, z);
 }
