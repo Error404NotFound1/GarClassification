@@ -167,7 +167,32 @@ std::vector<YoloRect> postProcess(float* output_data, int num_detections, float 
         float class_score = 0;
         for(int j = 0; j < class_num; ++j) {
             if(data[5 + j] > class_score) {
-                class_id = j;
+                switch (j)
+                {
+                case 0: class_id = 0;
+                    break;
+                case 8: class_id = 0;
+                    break;
+                case 1: class_id = 1;
+                    break;
+                case 2: class_id = 1;
+                    break;
+                case 3: class_id = 2;
+                    break;
+                case 4: class_id = 2;
+                    break;
+                case 5: class_id = 2;
+                    break;
+                case 6: class_id = 3;
+                    break;
+                case 7: class_id = 3;
+                    break;
+                case 9: class_id = 3;
+                    break;
+                default:
+                    break;
+                }
+                
                 class_score = data[5 + j];
             }
         }
@@ -342,9 +367,7 @@ void DetectStart(cv::Mat &frame, YoloModel &yolo, cudaStream_t stream) {
     //     std::cout << "class_id: " << i.class_id << " confidence: " << i.confidence << std::endl;
     //     std::cout << "rect: " << i.rect << std::endl;
     // }
-    drawDetections(frame, GarbageList);
-    cv::imshow("frame", frame);
-    cv::waitKey(0);
+    
     // // 释放页锁定内存
     cudaFreeHost(output_data1);
 

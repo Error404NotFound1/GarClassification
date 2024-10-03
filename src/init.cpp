@@ -5,10 +5,10 @@ void CameraInit(Camera &cam) {
     cam.lenth = 0;
     cam.width = 0;
     cam.frame = cv::Mat::zeros(0, 0, CV_8UC3);
-    cam.Intrinsics = (cv::Mat_<double>(3, 3) << 800, 0, 320, 
-                                                0, 800, 240, 
+    cam.Intrinsics = (cv::Mat_<double>(3, 3) << 1.0666e3, 0, 961.8031, 
+                                                0, 1.0625e3, 592.6813, 
                                                 0, 0, 1);
-    cam.Distortion = (cv::Mat_<double>(1, 5) << 0, 0, 0, 0, 0);
+    cam.Distortion = (cv::Mat_<double>(1, 5) << -0.4337, 0.2218, 1e-6, 1e-6, -0.0612);
 }
 
 std::string ModelInit(){
