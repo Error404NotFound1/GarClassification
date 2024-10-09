@@ -7,6 +7,7 @@ using namespace std;
 #include "Tools.h"
 #include "dataBase.h"
 #include "Runningtime.h"
+#include "serial/SerialPort.h"
 
 int main() {
     Camera cam;
@@ -16,11 +17,19 @@ int main() {
     cudaStream_t stream;
     cudaStreamCreate(&stream);
 
+    // std::string port = "/dev/ttyUSB0"; // 根据实际情况修改
+    // int baud_rate = 9600;
+
+    // // 初始化串口
+    // int serial_fd = initSerial(port, baud_rate);
+    // if (serial_fd < 0) {
+    //     return 1;
+    // }
+    // serialStart(serial_fd);
+
     while (1)
     {
         TimePoint t0;
-        /* code */
-        // cv::Mat frame = cv::imread("/home/ybw/GarClassification/2eb99947c7b455a35283973b3d2a4fb.jpg");
         cap >> cam.frame;
         cam.lenth = cam.frame.rows;
         cam.width = cam.frame.cols;
@@ -38,7 +47,7 @@ int main() {
         cv::imshow("frame", cam.frame);
         cv::waitKey(1);
     }
-    // cap.release();
+    cap.release();
     cv::destroyAllWindows();
     cudaStreamDestroy(stream);
     

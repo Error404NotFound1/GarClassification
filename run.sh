@@ -119,4 +119,4 @@ fi
 
   
   # 运行可执行文件
-./GarbageClassify
+sudo ./GarbageClassify

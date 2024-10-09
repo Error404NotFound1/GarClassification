@@ -20,3 +20,21 @@ std::string ModelInit(){
     return engine_file;
 }
 
+// 初始化串口函数
+int initSerial(const std::string& port, int baud_rate) {
+    // 打开串口
+    int serial_fd = open(port.c_str(), O_RDWR | O_NOCTTY | O_SYNC);
+    if (serial_fd < 0) {
+        std::cerr << "Error opening " << port << ": " << strerror(errno) << std::endl;
+        return -1;
+    }
+
+    // 配置串口
+    if (configureSerialPort(serial_fd, baud_rate) != 0) {
+        close(serial_fd);
+        return -1;
+    }
+
+    return serial_fd;
+}
+
