@@ -3,6 +3,7 @@
 
 #include <string>
 #include "Yolo.h"
+#include "serial/SerialData.h"
 #include <vector>
 
 extern std::vector<YoloRect> GarbageList;

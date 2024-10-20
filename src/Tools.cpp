@@ -80,6 +80,13 @@ void pre_resize(const cv::Mat& img, cv::Mat &output, int h, int w){
     cv::resize(pad_img, output, cv::Size(w, h));
 }
 
+// 调整图像大小
+void post_resize(cv::Mat &img, int& orign_h, int& orign_w) {
+    int max_side_len = std::max(orign_h, orign_w);
+    cv::resize(img, img, cv::Size(max_side_len, max_side_len));
+    img = img(cv::Rect(0, 0, orign_w, orign_h));
+}
+
 // 预处理函数
 void preprocess(const cv::Mat& img, std::vector<float>& output)
 {

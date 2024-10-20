@@ -12,8 +12,8 @@ void CameraInit(Camera &cam) {
 }
 
 std::string ModelInit(){
-    std::string onnx_file = "/home/ybw/GarClassification/model/best.onnx";
-    std::string engine_file = "/home/ybw/GarClassification/model/bestV2.engine";
+    std::string onnx_file = "/home/ybw/GarClassification/model/GarbageV2.onnx";
+    std::string engine_file = "/home/ybw/GarClassification/model/GarbageV2.engine";
     if(!checkModel(engine_file)) {
         ONNX2Engine(onnx_file, engine_file);
     }

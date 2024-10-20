@@ -20,9 +20,9 @@ uint8_t calculateChecksum(const std::vector<uint8_t>& data);
 int serialStart(int& serial_fd);
 
 // 发送 SensorData 结构体的函数
-bool sendSensorData(int serial_fd, const SensorData& data);
+bool sendSerialData(int serial_fd, const SendData& data);
 
 // 接收 SensorData 结构体的函数
-bool receiveSensorData(int serial_fd, SensorData& data);
+bool receiveSerialData(int serial_fd, ReceiveData& data);
 
 #endif // SERIAL_PORT_H

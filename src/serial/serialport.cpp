@@ -7,6 +7,10 @@
 #include <errno.h>
 #include <string.h>
 
+#include "dataBase.h"
+
+extern SendData final_send_data;
+
 // 串口配置函数
 int configureSerialPort(int fd, int baud_rate) {
     struct termios tty;
@@ -72,7 +76,7 @@ uint8_t calculateChecksum(const std::vector<uint8_t>& data) {
 }
 
 // 发送 SensorData 结构体的函数
-bool sendSensorData(int serial_fd, const SensorData& data) {
+bool sendSerialData(int serial_fd, const SendData& data) {
     // 序列化结构体
     std::vector<uint8_t> data_bytes(reinterpret_cast<const uint8_t*>(&data),
                                     reinterpret_cast<const uint8_t*>(&data) + sizeof(data));
@@ -92,18 +96,18 @@ bool sendSensorData(int serial_fd, const SensorData& data) {
         return false;
     }
 
-    // 打印发送的数据包
-    std::cout << "Sent SensorData Packet: ";
-    for(auto byte : packet) {
-        printf("0x%02X ", byte);
-    }
-    std::cout << std::endl;
+    // // 打印发送的数据包
+    // std::cout << "Sent SensorData Packet: ";
+    // for(auto byte : packet) {
+    //     printf("0x%02X ", byte);
+    // }
+    // std::cout << std::endl;
 
     return true;
 }
 
-// 接收 SensorData 结构体的函数
-bool receiveSensorData(int serial_fd, SensorData& data) {
+
+bool receiveSerialData(int serial_fd, ReceiveData& data) {
     const uint8_t START_BYTE = 0xAA;
     uint8_t byte;
     ssize_t bytes_read;
@@ -158,31 +162,31 @@ bool receiveSensorData(int serial_fd, SensorData& data) {
     }
 
     // 反序列化数据
-    if (data_length != sizeof(SensorData)) {
-        std::cerr << "Data length mismatch. Expected: " << sizeof(SensorData)
+    if (data_length != sizeof(ReceiveData)) {
+        std::cerr << "Data length mismatch. Expected: " << sizeof(ReceiveData)
                   << ", Received: " << static_cast<int>(data_length) << std::endl;
         return false;
     }
 
-    memcpy(&data, data_bytes.data(), sizeof(SensorData));
+    memcpy(&data, data_bytes.data(), sizeof(ReceiveData));
 
-    // 打印接收到的数据
-    std::cout << "Received SensorData Packet: ID=" << data.id
-              << ", Temperature=" << data.temperature
-              << ", Humidity=" << data.humidity << std::endl;
+    // // 打印接收到的数据
+    // std::cout << "Received SensorData Packet: ID=" << data.id
+    //           << ", Temperature=" << data.temperature
+    //           << ", Humidity=" << data.humidity << std::endl;
 
     return true;
 }
 
 //启动串口
 int serialStart(int& serial_fd){
-    SensorData data;
-    data.id = 1;
-    data.temperature = 25.5f;
-    data.humidity = 60.0f;
+    // SensorData data;
+    // data.id = 1;
+    // data.temperature = 25.5f;
+    // data.humidity = 60.0f;
 
     // 发送结构体
-    if (!sendSensorData(serial_fd, data)) {
+    if (!sendSerialData(serial_fd, final_send_data)) {
         close(serial_fd);
         return 1;
     }

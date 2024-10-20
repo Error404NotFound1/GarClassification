@@ -47,5 +47,7 @@ float computeIoU(const cv::Rect& box1, const cv::Rect& box2);
 
 cv::Point3f getObjectPosition(const YoloRect& detection, const cv::Mat& intrinsic, const cv::Mat& distCoeffs, const float& FIXED_DISTANCE);
 
+void post_resize(cv::Mat &img, int& orign_h, int& orign_w);
+
 
 #endif
