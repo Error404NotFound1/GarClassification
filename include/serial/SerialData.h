@@ -4,15 +4,17 @@
 
 #include <stdint.h>
 
-// 确保结构体按1字节对齐
-#pragma pack(push, 1)
+#define	RX_HEAD1 0xFE 
+#define	RX_HEAD2 0xEE 
+#define	TX_HEAD1 0xFD 
+#define	TX_HEAD2 0xEE 
+
 struct SendData {
-    float x;
-    float y;
-    int class_id;
-    float angle;
+    float x = 1;
+    float y = 2;
+    int class_id = 3;
+    float angle = 4;
 };
-#pragma pack(pop)
 
 struct ReceiveData {
     bool isFinished = 0;
@@ -21,5 +23,37 @@ struct ReceiveData {
     bool bucket3_full = 0;
     bool bucket4_full = 0;
 };
+
+typedef struct
+{
+		uint8_t HAED1;
+		uint8_t HAED2;
+} rx_header;
+
+typedef struct
+{
+		uint8_t HAED1;
+		uint8_t HAED2;
+} tx_header;
+
+typedef struct
+{
+		uint16_t crc_u;
+} CRC16_CHECK_TX;
+
+typedef struct
+{		
+		rx_header  header;
+		SendData send_data;
+		CRC16_CHECK_TX CRCdata;		
+} rx_device_message;
+
+typedef struct
+{		
+		tx_header  header;
+		ReceiveData receive_data;
+		CRC16_CHECK_TX CRCdata;		
+} tx_device_message;;
+
 
 #endif 

@@ -6,10 +6,16 @@
 #include <unistd.h>     // UNIX 标准函数定义
 #include <errno.h>
 #include <string.h>
+#include <thread>
+#include <atomic>
+#include <unistd.h> // for close
 
 #include "dataBase.h"
+#include "crc/crc_ccitt_modify.h" // 引入新的 CRC 计算头文件
 
+// 外部数据
 extern SendData final_send_data;
+extern ReceiveData final_receive_data;
 
 // 串口配置函数
 int configureSerialPort(int fd, int baud_rate) {
@@ -34,6 +40,8 @@ int configureSerialPort(int fd, int baud_rate) {
     }
     cfsetospeed(&tty, speed);
     cfsetispeed(&tty, speed);
+    
+    std::cout << "Configuring serial port with baud rate: " << baud_rate << std::endl;
 
     // 配置串口参数
     tty.c_cflag &= ~PARENB;        // 无奇偶校验
@@ -63,135 +71,153 @@ int configureSerialPort(int fd, int baud_rate) {
         return -1;
     }
 
-    return 0;
-}
+    std::cout << "Serial port configured successfully." << std::endl;
 
-// 计算校验和
-uint8_t calculateChecksum(const std::vector<uint8_t>& data) {
-    uint8_t checksum = 0;
-    for(auto byte : data) {
-        checksum += byte;
-    }
-    return checksum;
+    return 0;
 }
 
 // 发送 SensorData 结构体的函数
 bool sendSerialData(int serial_fd, const SendData& data) {
-    // 序列化结构体
-    std::vector<uint8_t> data_bytes(reinterpret_cast<const uint8_t*>(&data),
-                                    reinterpret_cast<const uint8_t*>(&data) + sizeof(data));
+    rx_device_message rxMessage;
+    rxMessage.header.HAED1 = RX_HEAD1;
+    rxMessage.header.HAED2 = RX_HEAD2;
+    rxMessage.send_data = data;
 
-    // 构建数据包
-    std::vector<uint8_t> packet;
-    packet.push_back(0xAA); // 起始符
-    packet.push_back(static_cast<uint8_t>(data_bytes.size())); // 数据长度
-    packet.insert(packet.end(), data_bytes.begin(), data_bytes.end()); // 数据部分
-    uint8_t checksum = calculateChecksum(data_bytes);
-    packet.push_back(checksum); // 校验和
+    // 计算 CRC 校验
+    uint8_t* dataPtr = reinterpret_cast<uint8_t*>(&rxMessage);
+    size_t dataSize = sizeof(rx_device_message) - sizeof(CRC16_CHECK_TX);
+    rxMessage.CRCdata.crc_u = crc_ccitt_modify(0xFFFF, dataPtr, dataSize);
 
-    // 发送数据包
-    ssize_t bytes_written = write(serial_fd, packet.data(), packet.size());
+    // std::cout << "Calculated CRC: " << std::hex << txMessage.CRCdata.crc_u << std::dec << std::endl;
+
+    // 发送整个结构体
+    ssize_t bytes_written = write(serial_fd, &rxMessage, sizeof(rx_device_message));
     if (bytes_written < 0) {
         std::cerr << "Error writing to serial port: " << strerror(errno) << std::endl;
         return false;
     }
 
-    // // 打印发送的数据包
-    // std::cout << "Sent SensorData Packet: ";
-    // for(auto byte : packet) {
-    //     printf("0x%02X ", byte);
-    // }
-    // std::cout << std::endl;
+    std::cout << "Sent " << bytes_written << " bytes." << std::endl; // 输出发送字节数
 
     return true;
 }
 
-
+// 接收 SensorData 结构体的函数
 bool receiveSerialData(int serial_fd, ReceiveData& data) {
-    const uint8_t START_BYTE = 0xAA;
-    uint8_t byte;
-    ssize_t bytes_read;
+    rx_device_message rxMessage;
+    size_t expected_message_size = sizeof(rx_device_message);
+    uint8_t buffer[expected_message_size];
+    size_t bytes_received = 0;
 
-    // 寻找起始符
     while (true) {
-        bytes_read = read(serial_fd, &byte, 1);
-        if (bytes_read < 0) {
+        // 逐字节读取数据
+        ssize_t byte = read(serial_fd, buffer + bytes_received, 1);
+        if (byte < 0) {
             std::cerr << "Error reading from serial port: " << strerror(errno) << std::endl;
-            return false;
-        } else if (bytes_read == 0) {
-            // 超时
-            std::cerr << "Read timeout while waiting for start byte." << std::endl;
-            return false;
+            return false; // 读取出错，返回 false
         }
 
-        if (byte == START_BYTE) {
-            break;
+        if (byte == 0) {
+            continue; // 没有数据，继续尝试
         }
+
+        // 更新接收的字节数
+        bytes_received++;
+
+        // 如果接收到的字节数小于头部大小，继续读取
+        if (bytes_received < sizeof(rxMessage.header)) {
+            continue;
+        }
+
+        // 检查文件头是否匹配
+        rx_device_message* tempMessage = reinterpret_cast<rx_device_message*>(buffer);
+        if (tempMessage->header.HAED1 == RX_HEAD1 && tempMessage->header.HAED2 == RX_HEAD2) {
+            // 找到匹配的文件头，继续读取剩余的数据
+            while (bytes_received < expected_message_size) {
+                ssize_t more_bytes = read(serial_fd, buffer + bytes_received, expected_message_size - bytes_received);
+                if (more_bytes < 0) {
+                    std::cerr << "Error reading from serial port: " << strerror(errno) << std::endl;
+                    return false; // 读取出错，返回 false
+                }
+                if (more_bytes == 0) {
+                    continue; // 没有数据，继续尝试
+                }
+
+                bytes_received += more_bytes;
+            }
+
+            // 完整的消息已接收，验证 CRC
+            uint8_t* dataPtr = reinterpret_cast<uint8_t*>(buffer);
+            size_t dataSize = expected_message_size - sizeof(CRC16_CHECK_TX);
+            uint16_t calculated_crc = crc_ccitt_modify(0xFFFF, dataPtr, dataSize);
+
+            // 检查 CRC 是否匹配
+            if (calculated_crc == tempMessage->CRCdata.crc_u) {
+                // CRC 校验成功，将接收到的数据复制到 ReceiveData
+                data = tempMessage->receive_data;
+                return true; // 成功接收数据
+            } else {
+                std::cerr << "CRC mismatch. Calculated: " << calculated_crc
+                          << ", Received: " << tempMessage->CRCdata.crc_u << std::endl;
+            }
+        }
+
+        // 如果文件头不匹配，向前移动一个字节，并继续尝试匹配
+        memmove(buffer, buffer + 1, bytes_received - 1);
+        bytes_received -= 1;
     }
-
-    // 读取数据长度
-    uint8_t data_length;
-    bytes_read = read(serial_fd, &data_length, 1);
-    if (bytes_read != 1) {
-        std::cerr << "Error reading data length." << std::endl;
-        return false;
-    }
-
-    // 读取数据部分
-    std::vector<uint8_t> data_bytes(data_length);
-    bytes_read = read(serial_fd, data_bytes.data(), data_length);
-    if (bytes_read != data_length) {
-        std::cerr << "Error reading data bytes." << std::endl;
-        return false;
-    }
-
-    // 读取校验和
-    uint8_t received_checksum;
-    bytes_read = read(serial_fd, &received_checksum, 1);
-    if (bytes_read != 1) {
-        std::cerr << "Error reading checksum." << std::endl;
-        return false;
-    }
-
-    // 计算校验和
-    uint8_t calculated_checksum = calculateChecksum(data_bytes);
-    if (calculated_checksum != received_checksum) {
-        std::cerr << "Checksum mismatch. Received: " << static_cast<int>(received_checksum)
-                  << ", Calculated: " << static_cast<int>(calculated_checksum) << std::endl;
-        return false;
-    }
-
-    // 反序列化数据
-    if (data_length != sizeof(ReceiveData)) {
-        std::cerr << "Data length mismatch. Expected: " << sizeof(ReceiveData)
-                  << ", Received: " << static_cast<int>(data_length) << std::endl;
-        return false;
-    }
-
-    memcpy(&data, data_bytes.data(), sizeof(ReceiveData));
-
-    // // 打印接收到的数据
-    // std::cout << "Received SensorData Packet: ID=" << data.id
-    //           << ", Temperature=" << data.temperature
-    //           << ", Humidity=" << data.humidity << std::endl;
-
-    return true;
 }
 
-//启动串口
-int serialStart(int& serial_fd){
-    // SensorData data;
-    // data.id = 1;
-    // data.temperature = 25.5f;
-    // data.humidity = 60.0f;
+// 原子变量用于控制线程
+std::atomic<bool> running(true);
 
-    // 发送结构体
-    if (!sendSerialData(serial_fd, final_send_data)) {
-        close(serial_fd);
-        return 1;
+// 发送线程函数
+void sendThread(int serial_fd) {
+    while (running) {
+        // 发送结构体
+        if (!sendSerialData(serial_fd, final_send_data)) {
+            std::cerr << "Failed to send data." << std::endl;
+            break; // 发送失败，退出循环
+        }
+        std::cout << "Data sent successfully." << std::endl;
+
+        // 可以添加适当的延时
+        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 100毫秒
     }
+}
+
+// 接收线程函数
+void receiveThread(int serial_fd) {
+    while (running) {
+        // 接收数据
+        if (!receiveSerialData(serial_fd, final_receive_data)) {
+            std::cerr << "Failed to receive data." << std::endl;
+            break; // 接收失败，退出循环
+        }
+
+        // 处理接收到的数据（如果需要）
+        // std::cout << "Received valid data." << std::endl;
+
+        // 可以添加适当的延时
+        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 100毫秒
+    }
+}
+
+// 启动串口
+int serialStart(int& serial_fd) {
+    std::cout << "Starting serial communication..." << std::endl;
+
+    // 创建发送和接收线程
+    std::thread sender(sendThread, serial_fd);
+    std::thread receiver(receiveThread, serial_fd);
+
+    // 等待线程完成
+    sender.join();
+    receiver.join();
 
     // 关闭串口
     close(serial_fd);
+    std::cout << "Serial port closed." << std::endl;
+
     return 0;
 }
