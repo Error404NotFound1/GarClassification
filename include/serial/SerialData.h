@@ -19,9 +19,6 @@ struct SendData {
 struct ReceiveData {
     bool isFinished = 0;
     bool bucket1_full = 0;
-    bool bucket2_full = 0;
-    bool bucket3_full = 0;
-    bool bucket4_full = 0;
 };
 
 typedef struct
@@ -43,14 +40,14 @@ typedef struct
 
 typedef struct
 {		
-		rx_header  header;
+		rx_header header;
 		SendData send_data;
 		CRC16_CHECK_TX CRCdata;		
 } rx_device_message;
 
 typedef struct
 {		
-		tx_header  header;
+		tx_header header;
 		ReceiveData receive_data;
 		CRC16_CHECK_TX CRCdata;		
 } tx_device_message;;
