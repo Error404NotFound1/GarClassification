@@ -199,6 +199,8 @@ std::vector<YoloRect> postProcess(float* output_data, int num_detections, float 
                 default:
                     break;
                 }
+                ////////
+                class_id = j;
                 
                 class_score = data[5 + j];
             }
@@ -231,8 +233,26 @@ std::vector<YoloRect> postProcess(float* output_data, int num_detections, float 
 void drawDetections(cv::Mat& image, const std::vector<YoloRect>& detections) {
     std::cout << "drawDetections size: " << detections.size() << std::endl;
     for (const auto& detection : detections) {
+        cv::Scalar color = cv::Scalar(0, 255, 0); // 白色
+        switch (detection.class_id)
+        {
+        case 0:
+            color = cv::Scalar(0, 255, 0);
+            break;
+        case 1:
+            color = cv::Scalar(255, 0, 0);
+            break;
+        case 2:
+            color = cv::Scalar(255, 0, 255);
+            break;
+        case 3:
+            color = cv::Scalar(0, 0, 255);
+            break;
+        default:
+            break;
+        }
         // 绘制矩形框
-        cv::rectangle(image, detection.rect, cv::Scalar(0, 255, 0), 2); // 绿色框
+        cv::rectangle(image, detection.rect, color, 2); 
 
         // 绘制置信度和类别ID
         std::string label = "Class: " + std::to_string(detection.class_id) + 
@@ -256,12 +276,12 @@ void drawDetections(cv::Mat& image, const std::vector<YoloRect>& detections) {
         cv::rectangle(image, 
                       cv::Point(label_x, label_y),
                       cv::Point(label_x + labelSize.width, label_y + labelSize.height + baseLine),
-                      cv::Scalar(0, 255, 0), cv::FILLED);
+                      color, cv::FILLED);
         
         // 在图像上绘制标签
         cv::putText(image, label, 
                     cv::Point(label_x, label_y + labelSize.height), // 让文本在背景框内
-                    cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1);
+                    cv::FONT_HERSHEY_SIMPLEX, 0.5, color, 1);
     }
 }
 

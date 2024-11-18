@@ -12,6 +12,7 @@ using namespace std;
 int main() {
     Camera cam;
     CameraInit(cam);
+
     cv::VideoCapture cap(0);
     
     cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('M', 'J', 'P', 'G'));
@@ -39,8 +40,12 @@ int main() {
     while (1)
     {
         TimePoint t0;
-        // cap >> cam.frame;
-        cam.frame = cv::Mat::zeros(1080, 1920, CV_8UC3);
+        cv::Mat tempframe;
+        cap >> tempframe;
+    
+        // cam.frame = cv::imread("/home/ybw/GarClassification/test/5890bf472a8cc3f05cb036ef933d3f5.jpg");
+        cam.frame = undistortImage(tempframe, cam.Intrinsics, cam.Distortion);
+
         cam.lenth = cam.frame.rows;
         cam.width = cam.frame.cols;
         if(cam.frame.empty()) {

@@ -10,8 +10,8 @@ class YoloModel {
         int INPUT_H = 640;  //输入图像尺寸
         int INPUT_W = 640;  //输入图像尺寸
         int INPUT_C = 3;    //输入通道数
-        float CONF_THRESH = 0.5; //置信度阈值
-        int CLASSES = 10;   //类别数
+        float CONF_THRESH = 0.25; //置信度阈值
+        int CLASSES = 16;   //类别数
         int MAX_BOXES = 25200;    //最大检测框数
         float IOU_THRESH = 0.3;   //IOU阈值
         YoloModel(const std::string& engineFile);

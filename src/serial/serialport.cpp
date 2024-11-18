@@ -14,6 +14,7 @@
 #include "crc/crc_ccitt_modify.h" // 引入新的 CRC 计算头文件
 
 // 外部数据
+extern std::vector<YoloRect> GarbageList;
 extern SendData final_send_data;
 extern ReceiveData final_receive_data;
 
@@ -184,10 +185,17 @@ bool receiveSerialData(int serial_fd, ReceiveData& data) {
 
 // 原子变量用于控制线程
 std::atomic<bool> running(true);
-
+std::vector<YoloRect> GarbageBuffer;
 // 发送线程函数
 void sendThread(int serial_fd) {
     while (running) {
+        // // 对垃圾列表进行排序
+        // std::sort(GarbageList.begin(), GarbageList.end(), [](const YoloRect& a, const YoloRect& b) {
+        //     if(a.rect.y != b.rect.y) {
+        //         return a.rect.y < b.rect.y;
+        //     }
+        //     return a.rect.x < b.rect.x;
+        // });
         // 发送结构体
         if (!sendSerialData(serial_fd, final_send_data)) {
             std::cerr << "Failed to send data." << std::endl;

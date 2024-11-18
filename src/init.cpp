@@ -10,10 +10,18 @@ void CameraInit(Camera &cam) {
                                                 0, 0, 1);
     cam.Distortion = (cv::Mat_<double>(1, 5) << -0.4337, 0.2218, 1e-6, 1e-6, -0.0612);
 }
+cv::Mat undistortImage(const cv::Mat& inputImage, const cv::Mat& cameraMatrix, const cv::Mat& distCoeffs) {
+    cv::Mat undistortedImage;
+    
+    // 去畸变
+    cv::undistort(inputImage, undistortedImage, cameraMatrix, distCoeffs);
+
+    return undistortedImage;
+}
 
 std::string ModelInit(){
-    std::string onnx_file = "/home/ybw/GarClassification/model/GarbageV2.onnx";
-    std::string engine_file = "/home/ybw/GarClassification/model/GarbageV2.engine";
+    std::string onnx_file = "/home/ybw/GarClassification/model/GarbageV4_640_16.onnx";
+    std::string engine_file = "/home/ybw/GarClassification/model/GarbageV4_640_16.engine";
     if(!checkModel(engine_file)) {
         ONNX2Engine(onnx_file, engine_file);
     }
