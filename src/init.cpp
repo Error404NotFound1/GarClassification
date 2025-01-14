@@ -20,8 +20,8 @@ cv::Mat undistortImage(const cv::Mat& inputImage, const cv::Mat& cameraMatrix, c
 }
 
 std::string ModelInit(){
-    std::string onnx_file = "/home/ybw/GarClassification/model/GarbageV4_640_16.onnx";
-    std::string engine_file = "/home/ybw/GarClassification/model/GarbageV4_640_16.engine";
+    std::string onnx_file = "/home/ybw/GarClassification/model/GarbageV6_640_16.onnx";
+    std::string engine_file = "/home/ybw/GarClassification/model/GarbageV6_640_16.engine";
     if(!checkModel(engine_file)) {
         ONNX2Engine(onnx_file, engine_file);
     }

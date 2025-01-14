@@ -119,4 +119,5 @@ fi
 
   
   # 运行可执行文件
+sudo pkill GarbageClassify
 sudo ./GarbageClassify

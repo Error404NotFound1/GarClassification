@@ -281,7 +281,7 @@ void drawDetections(cv::Mat& image, const std::vector<YoloRect>& detections) {
         // 在图像上绘制标签
         cv::putText(image, label, 
                     cv::Point(label_x, label_y + labelSize.height), // 让文本在背景框内
-                    cv::FONT_HERSHEY_SIMPLEX, 0.5, color, 1);
+                    cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255,255,255), 1);
     }
 }
 
