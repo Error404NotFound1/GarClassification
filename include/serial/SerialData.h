@@ -3,12 +3,21 @@
 #define SERIAL_DATA_H
 
 #include <stdint.h>
+#include <cstring>
+#include <iostream>
+#include <iomanip>
 
-#define	RX_HEAD1 0xFE 
-#define	RX_HEAD2 0xEE 
-#define	TX_HEAD1 0xFD 
-#define	TX_HEAD2 0xEE 
+#define	HEAD1 0xFE 
+#define	HEAD2 0xEE 
+#define	TAIL1 0xFF
+#define	TAIL2 0xFF 
 
+// 32位整数转大端字节序
+uint32_t toBigEndian32(uint32_t value);
+// 浮点数转大端字节序
+void floatToBigEndian(float value, uint8_t* buffer);
+
+#pragma pack(1)
 struct SendData {
     float x = 1;
     float y = 2;
@@ -17,40 +26,43 @@ struct SendData {
 };
 
 struct ReceiveData {
-    bool isFinished = 0;
-    bool bucket1_full = 0;
+    int isReady = 0;
+	int isWorking = 0;
+    int bucket1_full = 0;
+	float temple = 0;
 };
 
 typedef struct
 {
-		uint8_t HAED1;
-		uint8_t HAED2;
-} rx_header;
+		uint8_t head1;
+		uint8_t head2;
+} header;
 
 typedef struct
 {
-		uint8_t HAED1;
-		uint8_t HAED2;
-} tx_header;
-
-typedef struct
-{
-		uint16_t crc_u;
-} CRC16_CHECK_TX;
+		uint8_t tail1;
+		uint8_t tail2;
+} tailer;
 
 typedef struct
 {		
-		rx_header header;
+		header head;
 		SendData send_data;
-		CRC16_CHECK_TX CRCdata;		
-} rx_device_message;
+		tailer tail;		
+} send_data_message;
+
 
 typedef struct
 {		
-		tx_header header;
+		header head;
 		ReceiveData receive_data;
-		CRC16_CHECK_TX CRCdata;		
-} tx_device_message;;
+		tailer tail;		
+} receive_data_message;
 
+#pragma pack()
+// 转换结构体中的 int 和 float 为大端字节序
+void convertToBigEndian(send_data_message& message);
+
+void printReceiveData(const receive_data_message& message);
 
 #endif 
