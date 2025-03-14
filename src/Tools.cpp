@@ -400,17 +400,9 @@ void DetectStart(cv::Mat &frame, YoloModel &yolo, cudaStream_t stream) {
 
 }
 
-// 函数：根据检测框、相机内参和畸变系数计算物体的实际位置
-cv::Point3f getObjectPosition(const YoloRect& detection, const cv::Mat& intrinsic, const cv::Mat& distCoeffs, const float& FIXED_DISTANCE) {
-    // 将单个点存储在一个向量中
-    std::vector<cv::Point2f> points = { detection.center };
-    std::vector<cv::Point2f> undistortedPoints;
-
-    // 执行畸变校正
-    undistortPoints(points, undistortedPoints, intrinsic, distCoeffs, cv::Mat(), intrinsic);
-
-    // 获取校正后的点
-    cv::Point2f undistortedPoint = undistortedPoints[0];
+cv::Point3f getObjectPosition(const YoloRect& detection, const cv::Mat& intrinsic, const float& FIXED_DISTANCE, const float& CAMERA_PITCH_ANGLE) {
+    // 直接使用检测框的中心点
+    cv::Point2f undistortedPoint = detection.center;
 
     // 从内参矩阵中获取焦距和光心
     float fx = intrinsic.at<double>(0, 0);
@@ -418,10 +410,19 @@ cv::Point3f getObjectPosition(const YoloRect& detection, const cv::Mat& intrinsi
     float cx = intrinsic.at<double>(0, 2);
     float cy = intrinsic.at<double>(1, 2);
 
-    // 计算实际位置
-    float z = FIXED_DISTANCE; // 固定前向距离
-    float x = (undistortedPoint.x - cx) * z / fx;
-    float y = (undistortedPoint.y - cy) * z / fy;
+    // 计算物体在相机坐标系中的初始位置（假设相机没有旋转）
+    float z_initial = FIXED_DISTANCE; // 固定前向距离
+    float x_initial = (undistortedPoint.x - cx) * z_initial / fx;
+    float y_initial = (undistortedPoint.y - cy) * z_initial / fy;
+
+    // 将相机pitch角度转换为弧度
+    float pitch_rad = CAMERA_PITCH_ANGLE * CV_PI / 180.0f;
+
+    // 考虑相机pitch角度的影响，计算旋转后的物体位置
+    float x = x_initial; // x坐标不受pitch影响
+    float y = y_initial * std::cos(pitch_rad) - z_initial * std::sin(pitch_rad); // y坐标受pitch影响
+    // float z = y_initial * std::sin(pitch_rad) + z_initial * std::cos(pitch_rad); // z坐标受pitch影响
+    float z = 0;
 
     return cv::Point3f(x, y, z);
 }

@@ -45,7 +45,7 @@ std::vector<YoloRect> nonMaximumSuppression(const std::vector<YoloRect>& detecti
 
 float computeIoU(const cv::Rect& box1, const cv::Rect& box2);
 
-cv::Point3f getObjectPosition(const YoloRect& detection, const cv::Mat& intrinsic, const cv::Mat& distCoeffs, const float& FIXED_DISTANCE);
+cv::Point3f getObjectPosition(const YoloRect& detection, const cv::Mat& intrinsic, const float& FIXED_DISTANCE, const float& CAMERA_PITCH_ANGLE);
 
 void post_resize(cv::Mat &img, int& orign_h, int& orign_w);
 

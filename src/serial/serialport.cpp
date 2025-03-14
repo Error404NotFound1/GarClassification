@@ -12,12 +12,15 @@
 #include <cstdlib>
 
 #include "dataBase.h"
+#include "Camera.h"
+#include "Tools.h"
 #include "crc/crc_ccitt_modify.h" // 引入新的 CRC 计算头文件
 
 // 外部数据
 extern std::vector<YoloRect> GarbageList;
 extern SendData final_send_data;
 extern ReceiveData final_receive_data;
+extern Camera cam;
 
 // 串口配置函数
 int configureSerialPort(int fd, int baud_rate) {
@@ -78,8 +81,6 @@ int configureSerialPort(int fd, int baud_rate) {
     return 0;
 }
 
-int iii=0;
-
 // 发送 SensorData 结构体的函数
 bool sendSerialData(int serial_fd, const SendData& data) {
     send_data_message send_message;
@@ -88,16 +89,6 @@ bool sendSerialData(int serial_fd, const SendData& data) {
     send_message.send_data = data;
     send_message.tail.tail1 = TAIL1;
     send_message.tail.tail2 = TAIL2;
-
-    send_message.send_data.x = 18.58765f + (iii++);
-    // send_message.send_data.x = 18.58765f;
-    send_message.send_data.y = 17.58765f;
-    send_message.send_data.class_id = 3;
-    send_message.send_data.angle = 16.98765f;
-
-    // uint8_t buffer2[30]={0xFE,0xEE, 0xAA, 0x90};
-
-    // convertToBigEndian(send_message);
 
     // 发送整个结构体
     ssize_t bytes_written = write(serial_fd, &send_message, sizeof(send_message));
@@ -159,11 +150,6 @@ bool receiveSerialData(int serial_fd, ReceiveData& data) {
                 std::cout << "Received valid data." << std::endl;
                 data = tempMessage->receive_data; // 接收到有效数据
 
-                // for (size_t i = 0; i < 20; ++i) {
-                //     std::cout << std::hex << std::setw(2) << std::setfill('0') << (int)buffer[i] << " ";
-                // }
-                // std::cout << std::endl;
-
                 printReceiveData(*tempMessage);
                 system("clear");
 
@@ -178,34 +164,33 @@ bool receiveSerialData(int serial_fd, ReceiveData& data) {
         memmove(buffer, buffer + 1, bytes_received - 1);
         bytes_received -= 1;
 
-        
-        // ssize_t byte = read(serial_fd, buffer2, sizeof(buffer2));
-        // std::cout << "buffer: ";
-        // for (ssize_t i = 0; i < byte; ++i) {
-        //     // 输出为十六进制格式
-        //     std::cout << std::hex << static_cast<int>(buffer2[i]) << " ";
-        // }
-        // std::cout << std::endl;
     }
 }
 
 // 原子变量用于控制线程
 std::atomic<bool> running(true);
 std::vector<YoloRect> GarbageBuffer;
+
+bool comparebyYoloRectArea(const YoloRect &a, const YoloRect &b) {
+    return a.rect.area() > b.rect.area();
+}
 // 发送线程函数
 void sendThread(int serial_fd) {
     while (running) {
-        // // 对垃圾列表进行排序
-        // std::sort(GarbageList.begin(), GarbageList.end(), [](const YoloRect& a, const YoloRect& b) {
-        //     if(a.rect.y != b.rect.y) {
-        //         return a.rect.y < b.rect.y;
-        //     }
-        //     return a.rect.x < b.rect.x;
-        // });
+        // 对垃圾列表进行排序
+        std::sort(GarbageList.begin(), GarbageList.end(), comparebyYoloRectArea);
+
+        // 发送最大的检测框
+        cv::Point3f sendtemple = getObjectPosition(GarbageList[0], cam.Intrinsics, 0.5, 0);
+        final_send_data.x = sendtemple.x;
+        final_send_data.y = sendtemple.y;
+        final_send_data.class_id = GarbageList[0].class_id;
+        final_send_data.angle = (GarbageList[0].rect.x > GarbageList[0].rect.y);
+
         // 发送结构体
         if (!sendSerialData(serial_fd, final_send_data)) {
             std::cerr << "Failed to send data." << std::endl;
-            break; // 发送失败，退出循环
+            // break; // 发送失败，退出循环
         }
         // std::cout << "Data sent successfully." << std::endl;
 
