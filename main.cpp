@@ -2,7 +2,7 @@
 #include <opencv2/opencv.hpp>
 #include <chrono>
 #include <thread>  // for sleep_for
-//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
+
 using namespace std;
 using namespace std::chrono;
 
