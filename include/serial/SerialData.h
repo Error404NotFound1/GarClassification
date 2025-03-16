@@ -32,6 +32,12 @@ struct ReceiveData {
 	float temple = 0;
 };
 
+struct log_text{
+	int num = 0;
+	std::string class_id = " ";
+	std::string text = " ";
+};
+
 typedef struct
 {
 		uint8_t head1;

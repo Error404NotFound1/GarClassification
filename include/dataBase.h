@@ -11,6 +11,7 @@ extern std::vector<YoloRect> GarbageList;
 extern SendData final_send_data;
 extern ReceiveData final_receive_data;
 extern Camera cam;
+extern log_text log_text_data;
 
 
 #endif // __DATABASE_H__

@@ -176,31 +176,43 @@ std::vector<YoloRect> postProcess(float* output_data, int num_detections, float 
             if(data[5 + j] > class_score) {
                 switch (j)
                 {
-                case 0: class_id = 0;
-                    break;
-                case 8: class_id = 0;
-                    break;
                 case 1: class_id = 1;
                     break;
                 case 2: class_id = 1;
                     break;
-                case 3: class_id = 2;
+                case 10: class_id = 1;
                     break;
-                case 4: class_id = 2;
+                case 12: class_id = 1;
                     break;
-                case 5: class_id = 2;
+                case 13: class_id = 1;
                     break;
-                case 6: class_id = 3;
+                case 14: class_id = 1;
                     break;
-                case 7: class_id = 3;
+                case 0: class_id = 2;
                     break;
-                case 9: class_id = 3;
+                case 8: class_id = 2;
+                    break;
+                case 11: class_id = 2;
+                    break;
+                case 15: class_id = 2;
+                    break;
+                case 3: class_id = 3;
+                    break;
+                case 4: class_id = 3;
+                    break;
+                case 5: class_id = 3;
+                    break;
+                case 6: class_id = 4;
+                    break;
+                case 7: class_id = 4;
+                    break;
+                case 9: class_id = 4; 
                     break;
                 default:
                     break;
                 }
                 ////////
-                class_id = j;
+                // class_id = j;
                 
                 class_score = data[5 + j];
             }
@@ -236,16 +248,16 @@ void drawDetections(cv::Mat& image, const std::vector<YoloRect>& detections) {
         cv::Scalar color = cv::Scalar(0, 255, 0); // 白色
         switch (detection.class_id)
         {
-        case 0:
+        case 1:
             color = cv::Scalar(0, 255, 0);
             break;
-        case 1:
+        case 2:
             color = cv::Scalar(255, 0, 0);
             break;
-        case 2:
+        case 3:
             color = cv::Scalar(255, 0, 255);
             break;
-        case 3:
+        case 4:
             color = cv::Scalar(0, 0, 255);
             break;
         default:
@@ -418,11 +430,16 @@ cv::Point3f getObjectPosition(const YoloRect& detection, const cv::Mat& intrinsi
     // 将相机pitch角度转换为弧度
     float pitch_rad = CAMERA_PITCH_ANGLE * CV_PI / 180.0f;
 
-    // 考虑相机pitch角度的影响，计算旋转后的物体位置
-    float x = x_initial; // x坐标不受pitch影响
-    float y = y_initial * std::cos(pitch_rad) - z_initial * std::sin(pitch_rad); // y坐标受pitch影响
-    // float z = y_initial * std::sin(pitch_rad) + z_initial * std::cos(pitch_rad); // z坐标受pitch影响
-    float z = 0;
+    // 考虑相机pitch角度的影响，计算旋转后的物体位置（相机坐标系）
+    float x_camera = x_initial; // x坐标不受pitch影响
+    float y_camera = y_initial * std::cos(pitch_rad) - z_initial * std::sin(pitch_rad); // y坐标受pitch影响
+    float z_camera = y_initial * std::sin(pitch_rad) + z_initial * std::cos(pitch_rad); // z坐标受pitch影响
 
-    return cv::Point3f(x, y, z);
+    // 将相机坐标系转换为世界坐标系
+    // 假设世界坐标系的原点是相机光心，X轴向右，Y轴向上，Z轴向前
+    float x_world = x_camera;
+    float y_world = -y_camera; // 相机坐标系的Y轴向下，世界坐标系的Y轴向上
+    float z_world = z_camera;
+
+    return cv::Point3f(x_world, y_world, z_world);
 }
